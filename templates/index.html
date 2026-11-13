@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="heading">
+    <div >
+        <p class="eyebrow">YOUR SCHOOL, CONNECTED</p>
+        <h1>Hello, {{ g.user.name }}.</h1>
+        <p class="text-muted">
+            {% if g.user.role=='teacher' %}
+                Organise learning resources and manage class requests.
+            {% else %}
+                Find what you need for your next great lesson.
+            {% endif %}
+        </p>
+    </div>
+    <span class="subject">{{ g.user.role|title }} dashboard</span>
+</div>
+
+
+<div class="row g-3 mb-5">
+    {% for label, value in [('Resource types', resources|length), ('Copies available', available), ('Pending requests', pending)] %}
+    <div class="col-sm-4">
+        <div class="stat">
+            <span>{{ label }}</span>
+            <strong>{{ value }}</strong>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="heading">
+    <div>
+        <p class="eyebrow">EXPLORE &amp; LEARN</p>
+        <h2>Resource library</h2>
+        <label for="search">
+            Search resources
+            <input id="search" class="form-control" type="search" placeholder="Title or subject...">
+        </label>
+    </div>
+</div>
+
+<div class="row g-3 mb-5">
+    {% for r in resources %}
+        <div class="col-md-6 col-xl-3 resource" data-search="{{ (r.title ~ ' ' ~ r.subject)|lower }}">
+            <article class="resource-card">
+                <span class="subject">{{ r.subject }}</span>
+                <h3>{{ r.title }}</h3>
+                <p>{{ r.description }}</p>
+                <div class="resource-bottom">
+                    <span>{{ r.quantity }} available</span>
+                    {% if g.user.role =='student' %}
+                        <form method="post" action="{{ url_for('borrow', resource_id=r.id) }}">
+                            <input type="hidden" name="token" value="{{ session.token }}">
+                            <button type="submit" class="btn btn-primary btn-sm" {% if r.quantity == 0 %}disabled{% endif %}>Request
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </article>
+        </div>
+        {% else %}
+            <div class="col-12">
+                <p class="text-muted">No resources added yet.</p>
+            </div>
+    {% endfor %}      
+</div>
+<p id="no-results" hidden>No resources match your search.</p>
+
+{% if g.user.role =='teacher' %}
+    <section class="panel mb-5">
+        <h2>Add a resource</h2>
+        <p class="text-muted">Make another learning tool available to your class.</p>
+        <form action="/resources/add" method="post" class="row g-3">
+            <input type="hidden" name="token" value="{{ session.token }}">
+            <div class="col-md-5">
+                <label class="form-label" for="title">Resource title</label>
+                <input class="form-control" id="title" name="title" maxlength="100" required>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label" for="subject">Subject</label>
+                <input class="form-control" id="subject" name="subject" maxlength="50" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="quantity">Copies</label>
+                <input class="form-control" type="number" id="quantity" name="quantity" min="0" max="1000" value="1" required>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="description">Description</label>
+                <textarea class="form-control" id="description" name="description" maxlength="500" rows="3" required></textarea>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">Add resource</button>
+            </div>
+        </form>
+    </section>
+{% endif %}
+
+<section class="panel">
+    <h2>{{ 'Class requests' if g.user.role == 'teacher' else 'My requests' }}</h2>
+    <p class="text-muted">Keep track of requests, borrowed items and returns.</p>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Resource</th>
+                    {% if g.user.role == 'teacher' %}
+                        <th>Student</th>
+                    {% endif %}
+                    <th>Date</th>
+                    <th>Status</th>
+                    {% if g.user.role == 'teacher' %}
+                        <th>Action</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for loan in loans %}
+                 <tr>
+                    <td>{{ loan.title }}</td>
+                    {% if g.user.role == 'teacher' %}
+                        <th>{{ loan.name }}</th>
+                    {% endif %}
+                    <td class="text-nowrap">{{ loan.date[:10] }}</td>
+                    <td>
+                        <span class="status {{ loan.status|lower }}">{{ loan.status }}</span>
+                    </td>
+                    {% if g.user.role == 'teacher' %}
+                        <td>
+                            <div class="d-flex gap-2">
+                                {% for action in (['approve', 'decline'] if loan.status == 'Pending' else ['return'] if loan.status == 'Approved' else []) %}
+                                    <form method="post" action="{{ url_for('update_loan', loan_id=loan.id, action=action) }}">
+                                        <input type="hidden" name="token" value="{{ session.token }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                            {{ 'Mark returned' if action == 'return' else action|title }}
+                                        </button>
+                                    </form>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    {% endif %}
+                 </tr>
+                {% else %}
+                 <tr>
+                    <td colspan="{% if g.user.role == 'teacher' %}5{% else %}3{% endif %}" class="text-muted py-4">
+                        No requests yet. Requests will appear here.
+                    </td>
+                 </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
